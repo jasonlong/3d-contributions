@@ -8,12 +8,17 @@ const BASE_WIDTH = 0.167
 const BASE_HEIGHT = 0.05
 const CUBE_SIZE = 0.0143
 const MAX_HEIGHT = 0.14
+const FACE_ANGLE = 104.79
 
 let username = "jasonlong"
 let year = "2018"
 let json = {}
+let font = undefined
+let fontSize = 0.025
+let fontHeight = 0.00658 // Extrusion thickness
 
 let camera, scene, renderer
+let bronzeMaterial
 
 var urlParams = new URLSearchParams(window.location.search);
 
@@ -40,12 +45,86 @@ async function loadJSON(username, year) {
 
 loadJSON(username, year)
 
+const fixSideNormals = (geometry) => {
+  let triangle = new THREE.Triangle()
+
+  // "fix" side normals by removing z-component of normals for side faces
+  var triangleAreaHeuristics = 0.1 * ( fontHeight * fontSize );
+  for (var i = 0; i < geometry.faces.length; i++) {
+    let face = geometry.faces[i]
+
+    if ( face.materialIndex == 1 ) {
+      for ( var j = 0; j < face.vertexNormals.length; j ++ ) {
+        face.vertexNormals[ j ].z = 0
+        face.vertexNormals[ j ].normalize()
+      }
+
+      let va = geometry.vertices[ face.a ]
+      let vb = geometry.vertices[ face.b ]
+      let vc = geometry.vertices[ face.c ]
+
+      let s = triangle.set( va, vb, vc ).getArea()
+
+      if ( s > triangleAreaHeuristics ) {
+        for ( var j = 0; j < face.vertexNormals.length; j ++ ) {
+          face.vertexNormals[ j ].copy(face.normal)
+        }
+      }
+    }
+  }
+}
+
+const createText = () => {
+  let nameGeo = new THREE.TextGeometry(username, {
+    font: font,
+    size: fontSize,
+    height: fontHeight
+  })
+
+  nameGeo.computeBoundingBox()
+  nameGeo.computeVertexNormals()
+
+  let yearGeo = new THREE.TextGeometry(year, {
+    font: font,
+    size: fontSize,
+    height: fontHeight
+  })
+
+  yearGeo.computeBoundingBox()
+  yearGeo.computeVertexNormals()
+
+  fixSideNormals(nameGeo)
+  fixSideNormals(yearGeo)
+
+  nameGeo = new THREE.BufferGeometry().fromGeometry(nameGeo)
+  let nameMesh = new THREE.Mesh(nameGeo, bronzeMaterial)
+
+  nameMesh.position.x = -0.295
+  nameMesh.position.y = -0.075
+  nameMesh.position.z = -0.010
+
+  nameMesh.geometry.rotateX(FACE_ANGLE * Math.PI / 2)
+  nameMesh.geometry.rotateY(Math.PI * 2)
+  scene.add(nameMesh)
+
+  yearGeo = new THREE.BufferGeometry().fromGeometry(yearGeo)
+  let yearMesh = new THREE.Mesh(yearGeo, bronzeMaterial)
+
+  yearMesh.position.x = 0.280
+  yearMesh.position.y = -0.075
+  yearMesh.position.z = -0.010
+
+  yearMesh.geometry.rotateX(FACE_ANGLE * Math.PI / 2)
+  yearMesh.geometry.rotateY(Math.PI * 2)
+  scene.add(yearMesh)
+}
+
 const init = () => {
   // SCENE
   scene = new THREE.Scene()
 
   // CAMERA
-  camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 )
+  camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.01, 100 )
 
   // RENDERER
   renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -57,7 +136,7 @@ const init = () => {
 
   // MATERIALS
   let phongMaterial = new THREE.MeshPhongMaterial( { color: 0x40c463, transparent: true, opacity: 0.2, side: THREE.DoubleSide } )
-  let bronzeMaterial = new THREE.MeshPhysicalMaterial( { color: 0x645f61, metalness: 1, clearcoat: 0.5, clearcoatRoughness: 0.5, side: THREE.DoubleSide } )
+  bronzeMaterial = new THREE.MeshPhysicalMaterial( { color: 0x645f61, metalness: 1, clearcoat: 0.5, clearcoatRoughness: 0.5, side: THREE.DoubleSide } )
 
   // LIGHTS
   const dLight1 = new THREE.DirectionalLight(0xebeb8c, 0.8)
@@ -82,7 +161,7 @@ const init = () => {
 
     gltf.scene.rotation.x = Math.PI/2
     gltf.scene.rotation.y = -Math.PI
-    
+
     // let worldAxis = new THREE.AxesHelper(2);
     // scene.add(worldAxis)
     render()
@@ -103,19 +182,23 @@ const init = () => {
     scene.add(base.scene)
   })
 
+  // USERNAME + YEAR
+  let fontLoader = new THREE.FontLoader()
+  fontLoader.load('../fonts/helvetiker_regular.typeface.json', function (response) {
+    font = response
+    createText()
+  })
+
   // CONTRIBUTION BARS
   let barGroup = new THREE.Group()
   let maxCount = json.max
   let x = 0
   let y = 0
   json.contributions.forEach(week => {
-    y = (CUBE_SIZE * 7) 
+    y = (CUBE_SIZE * 7)
     week.days.forEach(day => {
-      console.log(day.date)
-      console.log(day.count)
       y -= CUBE_SIZE
       let height = (MAX_HEIGHT / maxCount * day.count).toFixed(4)
-      // console.log(height)
       let geometry = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, height)
       let cube = new THREE.Mesh(geometry, bronzeMaterial)
       cube.position.x = x
@@ -128,7 +211,7 @@ const init = () => {
   const groupBox = new THREE.Box3().setFromObject(barGroup)
   const groupCenter = groupBox.getCenter(new THREE.Vector3())
   barGroup.position.x -= groupCenter.x
-  barGroup.position.y -= groupCenter.y 
+  barGroup.position.y -= groupCenter.y
   scene.add(barGroup)
 
   const box = new THREE.Box3().setFromObject(scene)
