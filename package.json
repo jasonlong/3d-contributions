@@ -1,0 +1,11 @@
+{
+  "name": "3d-contributions",
+  "devDependencies": {
+    "browser-sync": "^2.18.2",
+    "gulp": "^3.9.1",
+    "gulp-watch": "^4.3.11"
+  },
+  "dependencies": {
+    "three": "^0.118.1"
+  }
+}
