@@ -9,10 +9,10 @@ gulp.task('browser-sync', function() {
     })
 })
 
-gulp.task('watch', ['browser-sync'], function () {
+gulp.task('watch', gulp.series('browser-sync', function() {
   gulp.watch("css/*.css").on('change', bs.reload)
   gulp.watch("js/*.js").on('change', bs.reload)
   gulp.watch("*.html").on('change', bs.reload)
-})
+}))
 
-gulp.task('auto', ['browser-sync', 'watch']);
+gulp.task('auto', gulp.series('browser-sync', 'watch'));

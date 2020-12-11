@@ -1,7 +1,8 @@
-import * as THREE from "./three.module.js";
-import { GLTFLoader } from './GLTFLoader.js';
-import { OrbitControls } from './OrbitControls.js';
-import { GUI } from './dat.gui.module.js';
+import * as THREE from "./three.module.js"
+import { GLTFLoader } from './GLTFLoader.js'
+import { OrbitControls } from './OrbitControls.js'
+import { OBJExporter } from './OBJExporter.js'
+import { GUI } from './dat.gui.module.js'
 
 const BASE_LENGTH = 0.834
 const BASE_WIDTH = 0.167
@@ -10,25 +11,25 @@ const CUBE_SIZE = 0.0143
 const MAX_HEIGHT = 0.14
 const FACE_ANGLE = 104.79
 
-let username = "jasonlong"
-let year = "2018"
 let json = {}
 let font = undefined
 let fontSize = 0.025
 let fontHeight = 0.00658 // Extrusion thickness
+let nameMesh
+let yearMesh
 
-let camera, scene, renderer
+let camera, scene, renderer, barGroup
 let bronzeMaterial
 
-var urlParams = new URLSearchParams(window.location.search);
-
-if (urlParams.has('username')) {
-  username = urlParams.get('username')
+const gui = new GUI()
+const params = {
+  username: 'jasonlong',
+  year: '2019'
 }
 
-if (urlParams.has('year')) {
-  year = urlParams.get('year')
-}
+let usernameController
+let yearController
+let exporter = new OBJExporter()
 
 // Import JSON data
 async function loadJSON(username, year) {
@@ -36,25 +37,38 @@ async function loadJSON(username, year) {
   let response = await fetch(url)
   if (response.ok) {
     json = await response.json()
-    init()
+    addBars()
+    addText()
     render()
   } else {
     alert("HTTP-Error: " + response.status)
   }
 }
 
-loadJSON(username, year)
+usernameController = gui.add(params, 'username').name('Username')
+usernameController.onChange(() => {
+  removeBars()
+  removeText()
+  loadJSON(params.username, params.year)
+})
+
+yearController = gui.add(params, 'year').name('Year')
+yearController.onChange(() => {
+  removeBars()
+  removeText()
+  loadJSON(params.username, params.year)
+})
 
 const fixSideNormals = (geometry) => {
   let triangle = new THREE.Triangle()
 
   // "fix" side normals by removing z-component of normals for side faces
-  var triangleAreaHeuristics = 0.1 * ( fontHeight * fontSize );
+  var triangleAreaHeuristics = 0.1 * (fontHeight * fontSize)
   for (var i = 0; i < geometry.faces.length; i++) {
     let face = geometry.faces[i]
 
-    if ( face.materialIndex == 1 ) {
-      for ( var j = 0; j < face.vertexNormals.length; j ++ ) {
+    if (face.materialIndex == 1) {
+      for (var j = 0; j < face.vertexNormals.length; j++) {
         face.vertexNormals[ j ].z = 0
         face.vertexNormals[ j ].normalize()
       }
@@ -63,10 +77,10 @@ const fixSideNormals = (geometry) => {
       let vb = geometry.vertices[ face.b ]
       let vc = geometry.vertices[ face.c ]
 
-      let s = triangle.set( va, vb, vc ).getArea()
+      let s = triangle.set(va, vb, vc).getArea()
 
-      if ( s > triangleAreaHeuristics ) {
-        for ( var j = 0; j < face.vertexNormals.length; j ++ ) {
+      if (s > triangleAreaHeuristics) {
+        for (var j = 0; j < face.vertexNormals.length; j++) {
           face.vertexNormals[ j ].copy(face.normal)
         }
       }
@@ -75,7 +89,7 @@ const fixSideNormals = (geometry) => {
 }
 
 const createText = () => {
-  let nameGeo = new THREE.TextGeometry(username, {
+  let nameGeo = new THREE.TextGeometry(params.username, {
     font: font,
     size: fontSize,
     height: fontHeight
@@ -84,7 +98,7 @@ const createText = () => {
   nameGeo.computeBoundingBox()
   nameGeo.computeVertexNormals()
 
-  let yearGeo = new THREE.TextGeometry(year, {
+  let yearGeo = new THREE.TextGeometry(params.year, {
     font: font,
     size: fontSize,
     height: fontHeight
@@ -97,7 +111,7 @@ const createText = () => {
   fixSideNormals(yearGeo)
 
   nameGeo = new THREE.BufferGeometry().fromGeometry(nameGeo)
-  let nameMesh = new THREE.Mesh(nameGeo, bronzeMaterial)
+  nameMesh = new THREE.Mesh(nameGeo, bronzeMaterial)
 
   nameMesh.position.x = -0.295
   nameMesh.position.y = -0.075
@@ -105,10 +119,11 @@ const createText = () => {
 
   nameMesh.geometry.rotateX(FACE_ANGLE * Math.PI / 2)
   nameMesh.geometry.rotateY(Math.PI * 2)
+  nameMesh.name = "name_mesh"
   scene.add(nameMesh)
 
   yearGeo = new THREE.BufferGeometry().fromGeometry(yearGeo)
-  let yearMesh = new THREE.Mesh(yearGeo, bronzeMaterial)
+  yearMesh = new THREE.Mesh(yearGeo, bronzeMaterial)
 
   yearMesh.position.x = 0.280
   yearMesh.position.y = -0.075
@@ -116,7 +131,12 @@ const createText = () => {
 
   yearMesh.geometry.rotateX(FACE_ANGLE * Math.PI / 2)
   yearMesh.geometry.rotateY(Math.PI * 2)
+  yearMesh.name = "year_mesh"
   scene.add(yearMesh)
+}
+
+const render = () => {
+  renderer.render(scene, camera)
 }
 
 const init = () => {
@@ -124,19 +144,19 @@ const init = () => {
   scene = new THREE.Scene()
 
   // CAMERA
-  camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.01, 100 )
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 100)
 
   // RENDERER
   renderer = new THREE.WebGLRenderer({ antialias: true })
-  renderer.setPixelRatio( window.devicePixelRatio )
-  renderer.setSize( window.innerWidth, window.innerHeight )
+  renderer.setPixelRatio(window.devicePixelRatio)
+  renderer.setSize(window.innerWidth, window.innerHeight)
   renderer.outputEncoding = THREE.sRGBEncoding
   renderer.setClearColor(0xffffff, 1)
   document.body.appendChild(renderer.domElement)
 
   // MATERIALS
-  let phongMaterial = new THREE.MeshPhongMaterial( { color: 0x40c463, transparent: true, opacity: 0.2, side: THREE.DoubleSide } )
-  bronzeMaterial = new THREE.MeshPhysicalMaterial( { color: 0x645f61, metalness: 1, clearcoat: 0.5, clearcoatRoughness: 0.5, side: THREE.DoubleSide } )
+  let phongMaterial = new THREE.MeshPhongMaterial({ color: 0x40c463, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
+  bronzeMaterial = new THREE.MeshPhysicalMaterial({ color: 0x645f61, metalness: 1, clearcoat: 0.5, clearcoatRoughness: 0.5, side: THREE.DoubleSide })
 
   // LIGHTS
   const dLight1 = new THREE.DirectionalLight(0xebeb8c, 0.8)
@@ -182,15 +202,21 @@ const init = () => {
     scene.add(base.scene)
   })
 
-  // USERNAME + YEAR
-  let fontLoader = new THREE.FontLoader()
-  fontLoader.load('../fonts/helvetiker_regular.typeface.json', function (response) {
-    font = response
-    createText()
-  })
+  const box = new THREE.Box3().setFromObject(scene)
+  const center = box.getCenter(new THREE.Vector3())
+  camera.lookAt(center)
+  camera.position.y = -0.4
+  camera.position.z = 0.3
 
+  let controls = new OrbitControls(camera, renderer.domElement)
+  controls.autoRotate = false
+  controls.screenSpacePanning = true
+  controls.addEventListener('change', render)
+}
+
+const addBars = () => {
   // CONTRIBUTION BARS
-  let barGroup = new THREE.Group()
+  barGroup = new THREE.Group()
   let maxCount = json.max
   let x = 0
   let y = 0
@@ -213,33 +239,63 @@ const init = () => {
   barGroup.position.x -= groupCenter.x
   barGroup.position.y -= groupCenter.y
   scene.add(barGroup)
-
-  const box = new THREE.Box3().setFromObject(scene)
-  const center = box.getCenter(new THREE.Vector3())
-  camera.lookAt(center)
-  camera.position.y = -0.4
-  camera.position.z = 0.3
-
-  let controls = new OrbitControls(camera, renderer.domElement)
-  controls.autoRotate = false
-  controls.screenSpacePanning = true
-  controls.addEventListener('change', render);
+  render()
 }
 
-const render = () => {
-  renderer.render(scene, camera)
+const removeBars = () => {
+  scene.remove(barGroup)
+  barGroup = null
+  render()
+}
+
+const addText = () => {
+  let fontLoader = new THREE.FontLoader()
+  fontLoader.load('../fonts/helvetiker_regular.typeface.json', function (response) {
+    font = response
+    createText()
+    render()
+  })
+}
+
+const removeText = () => {
+  scene.remove(nameMesh)
+  scene.remove(yearMesh)
+  nameMesh = null
+  yearMesh = null
+  render()
 }
 
 //
 // Event listeners
 //
+
+const onExport = () => {
+  const result = exporter.parse(mesh)
+  save(new Blob([ text ], { type: 'text/plain' }), filename)
+}
+
+const save = (blob, filename) => {
+  downloadLink.href = URL.createObjectURL(blob)
+  downloadLink.download = filename
+  downloadLink.click()
+}
+
 const onWindowResize = () => {
-  let canvasWidth = window.innerWidth;
-  let canvasHeight = window.innerHeight;
-  renderer.setSize( canvasWidth, canvasHeight );
-  camera.aspect = canvasWidth / canvasHeight;
-  camera.updateProjectionMatrix();
+  let canvasWidth = window.innerWidth
+  let canvasHeight = window.innerHeight
+  renderer.setSize(canvasWidth, canvasHeight)
+  camera.aspect = canvasWidth / canvasHeight
+  camera.updateProjectionMatrix()
   render()
 }
 
 window.addEventListener('resize', onWindowResize, false)
+
+///////////////////////////////////////////////////////////////////////
+//
+// ENTRY POINT
+//
+///////////////////////////////////////////////////////////////////////
+
+init()
+loadJSON(params.username, params.year)
