@@ -10,6 +10,6 @@
     "gulp-watch": "^4.3.11"
   },
   "dependencies": {
-    "three": "^0.118.1"
+    "three": "^0.125.0"
   }
 }
